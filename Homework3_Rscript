@@ -1,0 +1,179 @@
+##############
+##############
+# Cloud Computing Assingment 2 #
+# Muhammad Talha Zahid #
+##############
+##############
+
+## Clear the environemnt
+rm(list = ls())
+
+getwd()
+
+setwd("C:/Users/talha/Desktop/R_Class/R_lectures/ceu-cloud-class/serverless/")
+
+library(rvest)
+install.packages("aws.comprehend", repos = c(cloudyr = "http://cloudyr.github.io/drat", getOption("repos")))
+library(xml2)
+library(dplyr)
+library(data.table)
+library(httr)
+library("aws.comprehend")
+library(ggthemes)
+library(ggplot2)
+library(tidyr)
+library(wordcloud)
+install.packages('hrbrthemes')
+library(hrbrthemes)
+library(tidyverse)
+install.packages('virdis')
+library(viridis)
+
+# Set up your R w/ AWS
+
+keyfile = list.files(path=".", pattern="accessKeys.csv", full.names=TRUE)
+if (identical(keyfile, character(0))){
+  stop("ERROR: AWS key file not found")
+} 
+keyTable <- read.csv(keyfile, header = T) # *accessKeys.csv == the CSV downloaded from AWS containing your Access & Secret keys
+AWS_ACCESS_KEY_ID <- as.character(keyTable$Access.key.ID)
+AWS_SECRET_ACCESS_KEY <- as.character(keyTable$Secret.access.key)
+
+#activate
+
+Sys.setenv("AWS_ACCESS_KEY_ID" = AWS_ACCESS_KEY_ID,
+           "AWS_SECRET_ACCESS_KEY" = AWS_SECRET_ACCESS_KEY,
+           "AWS_DEFAULT_REGION" = "eu-west-1") 
+
+# Dawn News
+
+dn<- read_html("https://www.dawn.com/news/1655182")
+description <- dn %>% html_nodes('p:nth-child(2) , p:nth-child(3) , p:nth-child(4) , blockquote+ p , 
+                                 p:nth-child(8) , p:nth-child(10) , p:nth-child(9) , p:nth-child(14) , 
+                                 p:nth-child(13) , p:nth-child(12) , p:nth-child(11) , .mt-1 p:nth-child(1) , 
+                                 .border-b-grey-default') %>% html_text()
+detect_language(description)
+dawn_news<- detect_sentiment(description)
+dawn_news
+
+dawn_news$Sentiment <- NULL
+
+Article1 <- dawn_news %>% gather('sentiments', 'ratings', -1)
+Article1
+
+
+ggplot(data = Article1 ,aes(x= Index, y = ratings ,fill = sentiments))+
+  geom_bar(stat="identity", position ="fill")+
+  scale_fill_viridis(discrete = T) +
+  ggtitle("Dawn News") +
+  theme_ipsum()
+
+## Dropping the neutral values
+
+d <- dawn_news
+d$Neutral <- NULL
+
+dd <- d %>% gather('Sentiments', 'ratings', -1)
+
+ggplot( data = dd, aes(x = Index, y= ratings, fill = Sentiments)) +
+  geom_bar(stat = 'identity', position = 'fill') +
+  scale_fill_viridis(discrete = T) +
+  ggtitle('Dawn News Neutral Dropped') +
+  theme_ipsum()
+
+
+
+## Time News
+
+tn<- read_html("https://time.com/6112849/why-cop26-matters/")
+description1 <- tn %>% html_nodes('.heading-content , p~ p+ p , .tgx-processed+ p , p:nth-child(10) , .cnx-main-container-flex~ p+ p , .cnx-main-container-flex+ p , p:nth-child(1)') %>% html_text()
+detect_language(description1)
+
+Time_news<- detect_sentiment(description1)
+Time_news
+Time_news$Sentiment <-NULL 
+Article2 <- Time_news %>% gather("sentiments", "ratings", -1)
+Article2
+
+
+# Graphics Time News
+
+ggplot(data = Article2,aes(x= Index, y = ratings ,fill = sentiments))+
+  geom_bar(stat="identity", position ="fill")+
+  scale_fill_viridis(discrete = T) +
+  ggtitle("Time News")+
+  theme_ipsum()
+
+time1 <- paste(description1,collapse = '')
+detect_sentiment(time1)
+
+## dropping the neutral values
+
+t <- Time_news
+t$Neutral <- NULL
+
+tt <- t %>% gather('Sentiments', 'ratings', -1)
+ggplot( data = tt, aes(x = Index, y= ratings, fill = Sentiments)) +
+  geom_bar(stat = 'identity', position = 'fill') +
+  scale_fill_viridis(discrete = T) +
+  ggtitle('Time News Neutral Dropped') +
+  theme_ipsum()
+
+## Merging the article
+
+time1 <-paste(description1,collapse = "")  
+time11 <- detect_sentiment(time1)
+
+time11$Sentiment <- NULL
+
+Article22 <- time11 %>% gather('sentiments', 'ratings', -1)
+Article22
+
+ggplot(data = Article22 ,aes(x= Index, y = ratings ,fill = sentiments))+
+  geom_bar(stat="identity", position ="fill")+
+  ggtitle("Time News Merged") +
+  theme_wsj()
+
+
+
+## word cloud for Dawn News
+
+a <- detect_phrases(description)
+text <- a$Text
+
+library(tm)
+
+
+docs1 <- Corpus(VectorSource(paste(text, collapse = '')))
+inspect(docs1)
+dtm1 <- TermDocumentMatrix(docs1)
+m <- as.matrix(dtm1)
+v1 <- sort(rowSums(m),decreasing=TRUE)
+d1 <- data.frame(word = names(v1),freq=v1)
+head(d1, 10)
+d1 <- d1[-c(1),]
+
+set.seed(1234)
+wordcloud(words = d1$word,freq = d1$freq, min.freq = 1,
+          max.words=100, random.order=TRUE, rot.per=0.35, 
+          colors=brewer.pal(8, "Dark2"))
+
+## Word Cloud for Times
+
+b <- detect_phrases(description1)
+text2 <- b$Text
+
+
+docs2 <- Corpus(VectorSource(paste(text2, collapse = '')))
+inspect(docs2)
+dtm2 <- TermDocumentMatrix(docs2)
+m2 <- as.matrix(dtm2)
+v2 <- sort(rowSums(m2),decreasing=TRUE)
+d2 <- data.frame(word = names(v2),freq=v2)
+head(d2, 10)
+d2 <- d2[-c(1),]
+
+set.seed(1234)
+wordcloud(words = d2$word,freq = d2$freq, min.freq = 1,
+          max.words=100, random.order=TRUE, rot.per=0.35, 
+          colors=brewer.pal(8, "Dark2"))
